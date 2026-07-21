@@ -1,0 +1,14 @@
+# SECRETS — never commit
+alphahconfig.py
+
+# logs & live state (regenerable / machine-specific)
+*.log
+*.jsonl
+*.csv
+etf_paper_state.json
+datalake/
+
+# python
+__pycache__/
+*.pyc
+.DS_Store

@@ -1,0 +1,13 @@
+# Core (required to run QC4, momentum backtests, dashboard, Oracle)
+requests
+numpy
+pandas
+flask
+yahooquery
+langgraph            # multi-agent Oracle debate graph
+# Optional (only for non-local Oracle providers / satellites)
+# anthropic          # Oracle 'claude' provider
+# google-generativeai# Oracle 'gemini' provider
+# scipy              # ../research/graveyard straddle-bot IV inversion
+# Local LLMs for the Oracle run via ollama over HTTP (no python package needed):
+#   install ollama, then: ollama pull qwen3.6:27b llama3.1 qwen2.5:14b
