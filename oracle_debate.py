@@ -81,7 +81,7 @@ def p_field(t, k): m = re.search(k + r'[:\s]+(.+)', t, re.IGNORECASE); return m.
 
 def fmt_signals(s):
     try:
-        return json.dumps(s, indent=2, default=str)[:1300]
+        return json.dumps(s, indent=2, default=str)[:2200]   # room for the macro/credit block
     except Exception:
         return str(s)[:1300]
 

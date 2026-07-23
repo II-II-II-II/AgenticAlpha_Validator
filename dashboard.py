@@ -10,7 +10,7 @@ live paper NAV and $10k-from-Jan backtests.
 Prices: live via Yahoo (matches broker, all sessions); heavy Alpaca pulls cached 15 min. Binds 0.0.0.0
 for phone access on the LAN. (Options/dip experiments removed 2026-07-21 — see research/graveyard/.)
 """
-import json, time, os, requests, warnings, logging
+import json, time, os, sys, requests, warnings, logging
 import numpy as np, pandas as pd
 from datetime import datetime, timezone, timedelta
 from flask import Flask, jsonify, Response
@@ -21,6 +21,8 @@ warnings.filterwarnings('ignore'); logging.getLogger('yfinance').setLevel(loggin
 H = {'APCA-API-KEY-ID': cfg.ALPACA_KEY_ID, 'APCA-API-SECRET-KEY': cfg.ALPACA_SECRET_KEY}
 DATA = 'https://data.alpaca.markets'
 HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.join(HERE, 'research'))
+import macro as macromod         # objective macro backdrop (market-based + FRED hard data)
 PORT = 8787
 TTL = 900                        # 15-min cache on Alpaca-heavy calls
 app = Flask(__name__)
@@ -192,6 +194,18 @@ def sec_vix():
         return dict(price=None, mas=[], gate=False, error=str(e))
 
 
+def sec_macro():
+    """Objective macro backdrop: market-based (Yahoo, real-time) + FRED hard data + credit regime.
+    Its own async endpoint so a slow/unreachable FRED never blocks the main dashboard.
+    Persists to datalake/ so the Oracle agents read the SAME data the dashboard shows."""
+    snap = macromod.snapshot()
+    try:
+        macromod.save_snapshot(snap)
+    except Exception:
+        pass
+    return snap
+
+
 def sec_news():
     def pull(params):
         try:
@@ -273,6 +287,11 @@ def api_tqqqlive():
     return jsonify(tqqq_live_price())        # uncached — fresh Yahoo pull for the refresh button
 
 
+@app.route('/api/macro')
+def api_macro():
+    return jsonify(cached('macro', sec_macro))   # own endpoint; a slow FRED can't block /api/data
+
+
 @app.route('/api/data')
 def api():
     return jsonify(dict(
@@ -327,6 +346,10 @@ button.off{background:#333}
   <div class="card"><h2>Morning read (live)</h2><div id="morning"></div></div>
   <div class="card news"><h2>Top news</h2><ul id="news"></ul></div>
 </div>
+<div class="card" style="margin-top:16px">
+  <h2>Macro backdrop — zooming out
+    <span class="mut" style="font-size:11px;text-transform:none;letter-spacing:0;font-weight:400">· context, not a timing signal (macro is already priced in)</span></h2>
+  <div id="macro" class="mut">loading…</div></div>
 <div class="grid" style="margin-top:16px">
   <div class="card"><h2>QQQ price vs 30 &amp; 150-day</h2><canvas id="maChart" height="150"></canvas></div>
   <div class="card"><h2>Trades — buys &amp; sells</h2><canvas id="trChart" height="150"></canvas></div>
@@ -425,7 +448,27 @@ function setMode(mm){mode=mm;
     sub=`$10k in QC4 on ${start} → ${fmt(b.final_qc4)}  ·  +${b.total}% total · +${b.cagr}%/yr · worst DD ${b.max_dd}%   (S&P ${fmt(b.final_spy)})`;}
   document.getElementById('perfsub').textContent=sub;
   mk('perfChart',{type:'line',data:{labels,datasets:ds},options:{plugins:{legend:{labels:{color:'#aaa'}}},scales:{x:{display:false},y:{ticks:{color:'#888'}}}}});}
-load(); setInterval(load, 900000);
+async function loadMacro(){
+  try{
+    const d=await (await fetch('/api/macro')).json();
+    const dot=t=>t=='good'?'🟢':t=='bad'?'🔴':'⚪';
+    const row=r=>`<tr><td>${dot(r.tone)} ${r.label}</td><td style="text-align:right"><b>${r.value}</b></td><td class="mut" style="font-size:12px">${r.trend}${r.asof?' · '+r.asof:''}</td></tr>`;
+    const cr=d.credit_regime||{};
+    const tc=cr.tone=='good'?'g':(cr.tone=='bad'?'r':'mut');
+    let h='<div style="margin-bottom:14px">'
+      +`<span class="pill ${tc}" style="background:#20242c;font-size:13px">CREDIT REGIME · ${cr.label||'—'}</span>`
+      +(cr.detail?`<div class="mut" style="font-size:12px;margin-top:5px">${cr.detail}`
+        +(cr.hy_percentile!=null?`  <span style="opacity:.7">(HY spread ${cr.hy_percentile}th pct · SPY 1mo ${cr.spx_1mo}%)</span>`:'')+`</div>`:'')
+      +'</div>';
+    h+='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:22px">';
+    h+='<div><div class="mut" style="margin-bottom:6px;font-size:11px">MARKET-BASED · real-time, forward-looking</div><table>'+d.market.map(row).join('')+'</table></div>';
+    h+='<div><div class="mut" style="margin-bottom:6px;font-size:11px">HARD DATA · FRED (lagging — defines the regime)</div>';
+    h+=d.fred_ok?('<table>'+d.hard.map(row).join('')+'</table>'):'<div class="mut" style="padding:8px 0">FRED not reachable from here. Populates when the dashboard runs on your Mac.</div>';
+    h+='</div></div>';
+    document.getElementById('macro').innerHTML=h;
+  }catch(e){document.getElementById('macro').textContent='macro load error';}
+}
+load(); loadMacro(); setInterval(load, 900000); setInterval(loadMacro, 900000);
 </script></body></html>"""
 
 if __name__ == '__main__':

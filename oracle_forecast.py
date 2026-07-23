@@ -19,7 +19,7 @@ Usage:
 Definition: a day is BULL if QQQ close > open (intraday), else BEAR. NEUTRAL calls are logged
 but excluded from accuracy (they count as "stood aside").
 """
-import os, json, argparse, re, smtplib, time
+import os, sys, json, argparse, re, smtplib, time
 from email.mime.text import MIMEText
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
@@ -102,7 +102,7 @@ def build_signals():
     sma7, sma50, sma150 = c.rolling(7).mean().iloc[-1], c.rolling(50).mean().iloc[-1], c.rolling(150).mean().iloc[-1]
     rv = c.pct_change().tail(20).std() * np.sqrt(252) * 100
     stack = sum([pc > sma7, pc > sma50, pc > sma150])
-    return {
+    sig = {
         'qqq_prev_close': round(pc, 2), 'open': round(op, 2), 'gap_pct': round((op / pc - 1) * 100, 2),
         'sma7': round(float(sma7), 2), 'sma50': round(float(sma50), 2), 'sma150': round(float(sma150), 2),
         'above_7d': bool(pc > sma7), 'above_50d': bool(pc > sma50), 'above_150d': bool(pc > sma150),
@@ -112,6 +112,15 @@ def build_signals():
         'realized_vol_20d': round(float(rv), 1),
         'trend_stack': 'bull' if stack == 3 else ('bear' if stack == 0 else 'mixed'),
     }
+    try:                       # macro/credit backdrop for the agents — the stored snapshot (offline, fast)
+        sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'research'))
+        import macro as _macro
+        mc = _macro.compact()
+        if mc:
+            sig['macro'] = mc
+    except Exception:
+        pass
+    return sig
 
 
 # ---------------- news ----------------
