@@ -12,3 +12,21 @@ datalake/
 __pycache__/
 *.pyc
 .DS_Store
+
+# PERSONAL RECORDS — never commit (this repo is PUBLIC)
+# Default-deny for root-level prose: any notes, statements, or correspondence
+# dropped here stay local. Allowlist docs explicitly below.
+/*.md
+!/README.md
+!/CLAUDE.md
+
+# local config holding real positions / credentials
+nightly/portfolio.json
+nightly/.prompt.tmp
+reports/
+
+# generated research artifacts
+research/orb_tickers_*.txt
+research/orb_*_2*.csv
+research/orb_survivors_*.csv
+research/insider_events.csv

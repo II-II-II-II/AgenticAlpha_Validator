@@ -131,10 +131,14 @@ def _credit_spread():
 
 
 # ---------------- HARD DATA (FRED — lagging, defines the regime) ----------------
+FRED_UA = {'User-Agent': 'python-requests/2.31'}   # FRED's CDN tarpits a bare 'Mozilla/5.0' (bot sig)
+                                                   # -> ReadTimeout; a plain non-browser UA sails through.
+
+
 def _fred(series):
     """[(date, value)] for a FRED series, oldest→newest. [] on failure/unreachable."""
     try:
-        r = requests.get(FREDCSV, params={'id': series}, headers=UA, timeout=12)
+        r = requests.get(FREDCSV, params={'id': series}, headers=FRED_UA, timeout=12)
         rows = list(csv.reader(io.StringIO(r.text)))[1:]
         return [(d, float(v)) for d, v in rows if v not in ('.', '')]
     except Exception:
